@@ -354,7 +354,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
                         total_tokens=prompt_tokens + previous_num_tokens[i],
                     )
                     choice_data = ChatCompletionResponseStreamChoice(
-                        index=i, delta=[], finish_reason=output.finish_reason)
+                        index=i, delta={}, finish_reason=output.finish_reason)
                     chunk = ChatCompletionStreamResponse(
                         id=request_id,
                         object=chunk_object_type,
