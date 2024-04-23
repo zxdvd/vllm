@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 
+from vllm.config import SchedulerConfig
 from vllm.logger import init_logger
 from vllm.model_executor.layers.rejection_sampler import RejectionSampler
 from vllm.sequence import (Logprob, SamplerOutput, SequenceGroupMetadata,
@@ -12,6 +13,7 @@ from vllm.spec_decode.interfaces import (SpeculativeProposals,
                                          SpeculativeScorer, SpeculativeScores)
 from vllm.spec_decode.metrics import AsyncMetricsCollector
 from vllm.spec_decode.multi_step_worker import MultiStepWorker
+from vllm.spec_decode.ngram_worker import NGramWorker
 from vllm.spec_decode.util import (get_all_seq_ids, nvtx_range,
                                    split_batch_by_proposal_len)
 from vllm.worker.worker_base import LoraNotSupportedWorkerBase, WorkerBase
@@ -48,8 +50,43 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
     """
 
     @classmethod
-    def from_workers(cls, proposer_worker: MultiStepWorker,
-                     scorer_worker: WorkerBase) -> "SpecDecodeWorker":
+    def create_worker(
+        cls,
+        scorer_worker: WorkerBase,
+        speculative_config: SchedulerConfig,
+    ) -> "SpecDecodeWorker":
+
+        if speculative_config.ngram_prompt_lookup_max > 0:
+            proposer_worker = NGramWorker(
+                model_config=speculative_config.draft_model_config,
+                parallel_config=speculative_config.draft_parallel_config,
+                scheduler_config=scorer_worker.scheduler_config,
+                device_config=scorer_worker.device_config,
+                cache_config=scorer_worker.cache_config,
+                load_config=scorer_worker.load_config,
+                local_rank=0,
+                rank=0,
+                distributed_init_method=scorer_worker.distributed_init_method,
+            )
+            proposer_worker.set_ngram_window_size(
+                speculative_config.ngram_prompt_lookup_min,
+                speculative_config.ngram_prompt_lookup_max)
+        else:
+            proposer_worker = MultiStepWorker(
+                model_config=speculative_config.draft_model_config,
+                parallel_config=speculative_config.draft_parallel_config,
+                scheduler_config=scorer_worker.scheduler_config,
+                device_config=scorer_worker.device_config,
+                cache_config=scorer_worker.cache_config,
+                load_config=scorer_worker.load_config,
+                local_rank=0,
+                rank=0,
+                distributed_init_method=scorer_worker.distributed_init_method,
+                lora_config=scorer_worker.lora_config,
+                vision_language_config=scorer_worker.vision_language_config,
+                is_driver_worker=True,
+            )
+
         return SpecDecodeWorker(
             proposer_worker,
             scorer_worker,
@@ -59,7 +96,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
 
     def __init__(
         self,
-        proposer_worker: MultiStepWorker,
+        proposer_worker: WorkerBase,
         scorer_worker: WorkerBase,
         rejection_sampler: RejectionSampler,
         metrics_collector: Optional[AsyncMetricsCollector] = None,
@@ -134,8 +171,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         """
         (self.scorer_worker.model_runner.model.sampler.include_gpu_probs_tensor
          ) = True
-        (self.proposer_worker.model_runner.model.sampler.
-         include_gpu_probs_tensor) = True
+        self.proposer_worker.set_include_gpu_probs_tensor()
 
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         """Determine the number of cache blocks to use.
@@ -183,7 +219,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             "speculative decoding "
             "requires non-None seq_group_metadata_list")
 
-        logger.info(f"spec_decode_worker.execute_model {num_lookahead_slots=}")
+        #logger.info(f"spec_decode_worker.execute_model {num_lookahead_slots=}")
 
         # If no spec tokens, call the proposer and scorer workers normally.
         # Used for prefill.
@@ -215,7 +251,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         proposer and scorer model so that the KV cache is consistent between the
         two.
         """
-        logger.info("run proposer worker no spec")
+        #logger.info("run proposer worker no spec")
 
         self.proposer_worker.execute_model(
             seq_group_metadata_list=seq_group_metadata_list,
@@ -224,7 +260,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             blocks_to_copy=blocks_to_copy,
         )
 
-        logger.info("run target worker no spec")
+        #logger.info("run target worker no spec")
         sampler_output = self.scorer_worker.execute_model(
             seq_group_metadata_list=seq_group_metadata_list,
             blocks_to_swap_in=blocks_to_swap_in,
@@ -258,7 +294,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         sequence.
         """
 
-        logger.info("get spec proposals")
+        #logger.info("get spec proposals")
         # Generate proposals using draft worker.
         assert blocks_to_swap_in is not None
         assert blocks_to_swap_out is not None
@@ -267,7 +303,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             seq_group_metadata_list, blocks_to_swap_in, blocks_to_swap_out,
             blocks_to_copy, k)
 
-        logger.info("score proposals")
+        #logger.info("score proposals")
         proposal_scores = self.scorer.score_proposals(
             seq_group_metadata_list,
             blocks_to_swap_in,
@@ -277,11 +313,11 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             proposals,
         )
 
-        logger.info("verify proposals")
+        #logger.info("verify proposals")
         accepted_token_ids = self._verify_tokens(seq_group_metadata_list,
                                                  proposal_scores, proposals, k)
 
-        logger.info("create output list")
+        #logger.info("create output list")
         return self._create_output_sampler_list(seq_group_metadata_list,
                                                 accepted_token_ids, k)
 

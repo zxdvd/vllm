@@ -90,7 +90,7 @@ def test_spec_decode_xfail_chunked_prefill(test_llm_generator):
 @pytest.mark.parametrize(
     "common_llm_kwargs",
     [{
-        "model": "meta-llama/Llama-2-7b-chat-hf",
+        "model": "NousResearch/Llama-2-7b-chat-hf",
         "speculative_model": "JackFram/llama-68m",
         "num_speculative_tokens": 5,
 
@@ -112,7 +112,7 @@ def test_spec_decode_xfail_chunked_prefill(test_llm_generator):
         },
         {
             # Speculative max model len > target max model len should raise.
-            # https://huggingface.co/meta-llama/Llama-2-7b-chat-hf/blob/f5db02db724555f92da89c216ac04704f23d4590/config.json#L12
+            # https://huggingface.co/NousResearch/Llama-2-7b-chat-hf/blob/37892f30c23786c0d5367d80481fa0d9fba93cf8/config.json#L11
             "speculative_max_model_len": 4096 + 1,
         },
     ])
