@@ -14,7 +14,7 @@ equality.
 For ngram lookup, its idea comes from https://github.com/apoorvumang/prompt-lookup-decoding,
 and is merged into transform code base: https://github.com/huggingface/transformers/pull/27775.
 Since there is no model is needed for generate the proposal, we could make
-the testcase much simplier than drafter multi-step one.
+the testcase much simpler than drafter multi-step one.
 
 However, we still need to verify below scenario could be passed:
     * Batch size 1 greedy equality
