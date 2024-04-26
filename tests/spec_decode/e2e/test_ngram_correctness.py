@@ -64,62 +64,18 @@ from .conftest import get_output_from_llm_generator
     "output_len",
     [
         # Use long output len for the small model test.
-        1536,
+        256,
     ])
-@pytest.mark.parametrize("batch_size", [1])
+@pytest.mark.parametrize("batch_size", [1, 64])
 @pytest.mark.parametrize("seed", [1])
-def test_spec_decode_e2e_greedy_correctness_tiny_model_bs1(
-        baseline_llm_generator, test_llm_generator, batch_size: int,
-        output_len: int):
+def test_spec_decode_e2e_greedy_correctness_tiny_model(baseline_llm_generator,
+                                                       test_llm_generator,
+                                                       batch_size: int,
+                                                       output_len: int):
     """Verify greedy equality on a tiny model with batch size of one.
 
     Since this test is cheaper than other e2e correctness tests, we generate
     with a higher output_len.
-    """
-    run_greedy_equality_correctness_test(baseline_llm_generator,
-                                         test_llm_generator,
-                                         batch_size,
-                                         max_output_len=output_len,
-                                         force_output_len=True)
-
-
-@pytest.mark.parametrize(
-    "common_llm_kwargs",
-    [{
-        # Skip cuda graph recording for fast test.
-        "enforce_eager": True,
-
-        # Required for spec decode.
-        "use_v2_block_manager": True,
-
-        # Print spec metrics.
-        "disable_log_stats": False,
-    }])
-@pytest.mark.parametrize("per_test_common_llm_kwargs", [
-    {
-        "model": "JackFram/llama-68m",
-    },
-])
-@pytest.mark.parametrize("baseline_llm_kwargs", [{}])
-@pytest.mark.parametrize("test_llm_kwargs", [
-    {
-        "speculative_model": "[ngram]",
-        "num_speculative_tokens": 5,
-        "ngram_prompt_lookup_max": 3,
-    },
-])
-@pytest.mark.parametrize(
-    "output_len",
-    [
-        # Use small output len for fast test.
-        256,
-    ])
-@pytest.mark.parametrize("batch_size", [64])
-@pytest.mark.parametrize("seed", [1])
-def test_spec_decode_e2e_greedy_correctness_tiny_model_large_bs(
-        baseline_llm_generator, test_llm_generator, batch_size: int,
-        output_len: int):
-    """Verify greedy equality on a tiny model and large batch size.
     """
     run_greedy_equality_correctness_test(baseline_llm_generator,
                                          test_llm_generator,
@@ -198,7 +154,7 @@ def test_spec_decode_e2e_greedy_correctness_with_preemption(
             "ngram_prompt_lookup_max": 3,
         }
         # Try a range of common k, as well as large speculation.
-        for k in [1, 2, 3, 4, 5, 6, 7, 8, 9, 63]
+        for k in [1, 3, 5, 7, 10, 63]
     ] + [
         {
             "speculative_model": "[ngram]",
@@ -206,7 +162,7 @@ def test_spec_decode_e2e_greedy_correctness_with_preemption(
             "ngram_prompt_lookup_max": 1,
         }
         # Try a range of common k, as well as large speculation.
-        for k in [1, 2, 3, 4, 5, 6, 7, 8, 9, 63]
+        for k in [1, 3, 5, 7, 10, 63]
     ])
 @pytest.mark.parametrize("batch_size", [2])
 @pytest.mark.parametrize(

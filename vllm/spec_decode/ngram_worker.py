@@ -115,8 +115,7 @@ class NGramWorker(LoraNotSupportedWorkerBase):
                               ngram_size + sample_len]
                     res_len = len(res)
                     # pad 0 towards output as sample_len tokens required
-                    for i in range(res_len, sample_len):
-                        res.append(0)
+                    res += [0] * (sample_len - res_len)
 
                     break
             else:
